@@ -1,0 +1,107 @@
+# install SharePoint online PS modules
+If (!Get-InstalledModule - Name Microsoft.Online.Sharepoint.Powershell)) {
+  Install-Module -Name Microsoft.Onlne.SharePoint.Powershell
+}
+
+If (!Get-InstalledModule - Name SharepointPnPPowerShellOnline)) {
+  Install-Module -Name SharepointPnPPowerShellOnline
+}
+
+
+
+# Load SharePoint CSOM Assemblies
+
+Add-Type -Path "C:\Program files\WindowsPowerShell\Modules\Microsoft.Onlne.SharePoint.Powershell\16.0.25814.12000\Microsoft.Sharepoint.Client.dll"
+Add-Type -Path "C:\Program files\WindowsPowerShell\Modules\Microsoft.Onlne.SharePoint.Powershell\16.0.25814.12000\Microsoft.Sharepoint.Client.Runtimedll"
+
+# Set sharepoint Paramets
+
+$SiteUrl = "your sharepoint address"
+$conn = Connect-PnpOnline -Url $siteUrl -UseWebLogin -ReturnConnection
+$DestFolder = "Path of folder in the sharepoint"
+
+#Set Folder Requirement
+If (-not (Test-Path "$($env:Onedrive)\:*FolderName*)) {
+         New-Item -ItemType Directory - Path "$($env:onedrive)" - Name *FolderName*
+
+#Build JIRA Connections credentials
+#$user = "your Service account name"
+#$key = "Your API token"
+#$pair = "$($user):$($key)"
+#$encodedCreds = [system.convert]:: Tobase64String([System.Text.Encoding]::ASCII.GetBytes($pair))
+$encodedCreds = "*Mention the encoded credentials*"
+
+$Headers = @{
+Authorization = "Basic $encoderCreds"
+Accept = "application/json"
+}
+
+# call JIRA Rest API
+Try {
+  $json = (invoke-RestMethod -uri '*Mention the URI of the JIRA project*' 
+  -HEaders $HEaders -Method Get -ContentType 'application/json' -ErrorAction Stop)
+}
+Catch {
+  throw $_
+  break
+}
+
+$issues =@()
+
+ForEach ($issue in $json.issues) {
+     $task = [PSCustomObject]@{
+        Sprint = $($issue.fields.customfield_10004.name)
+        SprintStatus = $($issue.fields.customfield_10004.state)
+        IssueID  $($issue.key)
+       }
+       $issues += $task
+}
+
+ForEach ($item in $issues) {
+   If (-not ([string]::IsnullorEmpty($item.ResolutionDate))) {
+         $item.ResolutionDate = $item.ResolutionDate.Split('T')[0]
+   }
+}
+
+$issues | Export-csv"$($env:Onedrive)*folder path in onedrive where the csv need to be saved*" -NoTypeInformation -Force
+#$issues | convertTo-Csv -NoTypeInformation
+
+#Get Velocity Metrics
+Try {
+    $charts = Invoke-RestMethod -Uri'*Mention the URI of the JIRA chart*' -HEaders $HEaders -Method Get -ContentType 'application/json' -ErrorAction Stop
+    }
+Catch {
+    throw $_
+    break
+}
+$sprintSTate = $charts.sprints
+$velState = $charts.velocityStatEntries
+
+$sprints = @()
+
+ForEach ($sprint in $sprintState) {
+   $objentry = [PSCustomObject]@{
+       SprintName = $($sprint.name)
+       SprintStatus = $($sprint.state)
+       Estimated = ($velState.($sprint.id).estimated.value)
+       Completed = ($velState.($sprint.id).completed.value)
+   }
+   $sprints += $objEntry
+}
+
+$sprints | Export-Csv "$($env:OneDrive)\*Onedrive path*" -NoTypeInformation -Force
+#$sprints | convertTo-Csv - NoTypeInformation
+
+#upload to SharePoint
+
+Add-PnPFile -Path "$($env:OneDrive)\*Onedrive path with the name of the csv* -Folder $DestFolder
+Add-PnPFile -Path "$($env:OneDrive)\*Onedrive path with the name of the csv* -Folder $DestFolder
+     
+  
+
+
+
+
+
+
+
